@@ -1,19 +1,11 @@
 #include <curses.h>
 
-
-//void wmakeroom(WINDOW *w, int y, int x, int height, int width, int ulc, int urc, int llc, int lrc);
-//void wmakeroom(WINDOW *w, room *r);
-
-void wmoveplayer(WINDOW *w, int *playerY, int *playerX, char input);
-
-int *wallsY;
-int *wallsX;
+int **WALLS;
 int numWallVerts = 0;
-int termSizeX, termSizeY;
 
 typedef struct room{
 	char name[10];
-	int door[4][10];
+	unsigned int doors[4][10];
 	int y, x, height, width;
 	int tl;
 	int tr;
@@ -22,6 +14,12 @@ typedef struct room{
 } room;
 
 void wmakeroom(WINDOW *w, room *r);
+void drawroom(WINDOW *w, room *r);
+void makecollidable(room *r);
+void fillwallarray(int start, int end, int initY, int initX, int doors[40], bool vertical);
+void initdefaultroom(room *def);
+void wmoveplayer(WINDOW *w, int *playerY, int *playerX, char input);
+
 
 int main()
 {
@@ -29,8 +27,13 @@ int main()
 	cbreak();
 	noecho();
 	curs_set(0);
+	
+	int termSizeX, termSizeY;
 	getmaxyx(stdscr, termSizeY, termSizeX);
-		
+	
+	static room DEFAULT_ROOM;
+	initdefaultroom(&DEFAULT_ROOM);
+	
 	int playerY = 10;
 	int playerX = 10;
 	int ch;
@@ -50,25 +53,15 @@ int main()
         wborder(inventory, 0, 0, 0, 0, ACS_LTEE, ACS_RTEE, 0, 0);
         wrefresh(inventory);
 
-	struct room newRoom;
+	struct room newRoom = DEFAULT_ROOM;
 	newRoom.name[0] = 'T';
-	newRoom.door[0][3] = 1;
+	newRoom.doors[0][4] = 1;
 	newRoom.y = 4;
 	newRoom.x = 4;
 	newRoom.height = 10;
 	newRoom.width = 10;
-	newRoom.tl = ACS_ULCORNER;
-	newRoom.tr = ACS_URCORNER;
-	newRoom.bl = ACS_LLCORNER;
-	newRoom.br = ACS_LRCORNER;
 
 	wmakeroom(win, &newRoom);
-
-	
-
-//	wmakeroom(win, 5, 12, 8, 10, ACS_ULCORNER, ACS_URCORNER, ACS_LLCORNER, ACS_LRCORNER);
-//	wmakeroom(win, 12, 12, 5, 10, ACS_LTEE, ACS_RTEE, ACS_LLCORNER, ACS_LRCORNER);
-//	wmakeroom(win, 5, 30, 10, 10, ACS_ULCORNER, ACS_URCORNER, ACS_LLCORNER, ACS_LRCORNER);
 	wrefresh(win);
 
 	while((ch = getch()) != 'q')
@@ -82,101 +75,147 @@ int main()
 	return 0;
 }
 
+void initdefaultroom(room *def)
+{
+	def->tl = ACS_ULCORNER;
+	def->tr = ACS_URCORNER;
+	def->bl = ACS_LLCORNER;
+	def->br = ACS_LRCORNER;
+}
+
 void wmakeroom(WINDOW *w, room *r)
 {
-	int tNVs = numWallVerts;
-
-	wmove(w, r->y, r->x); //top horiz
-	whline(w, 0, r->width);
-	
-	wmove(w, (r->y+r->height)-1, r->x); //bot horiz
-	whline(w, 0, r->width);
-
-	wmove(w, r->y, r->x); //left vertical
-	wvline(w, 0, r->height);
-
-	wmove(w, r->y, (r->x+r->width)); //right vert
-	wvline(w, 0, r->height);
-
-	mvwaddch(w, r->y, r->x, r->tl); //corners clockwise
-	mvwaddch(w, r->y, r->x+r->width, r->tr);
-	mvwaddch(w, (r->y+r->height)-1, r->x, r->bl);
-	mvwaddch(w, (r->y+r->height)-1, r->x+r->height, r->br);
+	drawroom(w, r);
+	makecollidable(r);
 }
 
-/*
-void wmakeroom(WINDOW *w, int y, int x, int height, int width, int ulc, int urc, int llc, int lrc)
+void drawroom(WINDOW *w, room *r)
 {
-	int tNVs =  numWallVerts;
+	wmove(w, r->y, r->x); //top horiz
+        whline(w, 0, r->width);
 
-	wmove(w, y, x); //top horiz
-	whline(w, 0, width);
+        wmove(w, (r->y+r->height)-1, r->x); //bot horiz
+        whline(w, 0, r->width);
 
-	wmove(w, (y+height)-1, x); //bot horiz
-	whline(w, 0, width);
+        wmove(w, r->y, r->x); //left vertical
+        wvline(w, 0, r->height);
 
-	wmove(w, y, x); //left vert
-	wvline(w, 0, height);
+        wmove(w, r->y, (r->x+r->width)); //right vert
+        wvline(w, 0, r->height);
 
-	wmove(w, y, x+width); // right vert
-	wvline(w, 0, height);
+        mvwaddch(w, r->y, r->x, r->tl); //corners clockwise
+        mvwaddch(w, r->y, r->x+r->width, r->tr);
+        mvwaddch(w, (r->y+r->height)-1, r->x, r->bl);
+        mvwaddch(w, (r->y+r->height)-1, r->x+r->height, r->br);
 
-	mvwaddch(w, y, x, ulc);
-        mvwaddch(w, y, x+width, urc);
-        mvwaddch(w, (y+height)-1, x, llc);
-        mvwaddch(w, (y+height)-1, x+width, lrc);
+        //ADD DOORS//
+        int i, j;
+        for (i = 0; i < 4; i++)
+        {
+                for (j = 0; j < 10; j++)
+                {
+                        if (r->doors[i][j] == 1)
+                        {
+                                switch (i) 
+                                {
+                                        case 0: mvwaddch(w, r->y, r->x+j, ' '); break;
+                                        case 1: mvwaddch(w, r->y+j, r->x+r->width, ' '); break;
+                                        case 2: mvwaddch(w, (r->y+r->height)-1, (r->x+r->width)-j, ' '); break;
+                                        case 3: mvwaddch(w, (r->y+r->height)-(1+j), r->x, ' '); break;
+                                }
+                        }
+                }
+        }
 
+}
+
+void makecollidable(room *r)
+{
+	int tNVs = numWallVerts;
 	
-	if (wallsY == NULL)
+	int doorArray[40];	//TODO: refactor this block
+	int i;
+	for (i = 0; i < 40; i++)
 	{
-		wallsY = (int*) malloc (((2 * width) + (2*height)) * sizeof(int));
-        	wallsX = (int*) malloc (((2 * width) + (2*height)) * sizeof(int));
+			if (i < 10 && r->doors[0][i] == 1)
+				doorArray[i] = i;
+
+			else if (i < 20 && r->doors[1][i] == 1)
+				doorArray[i] = r->width+i;
+
+			else if (i < 30 && r->doors[2][i] == 1)
+					doorArray[i] = r->width+r->height+i;
+			
+			else if (i < 40 && r->doors[3][i] == 1)
+					doorArray[i] = (2*r->width)+r->height+i;
 	}
+	
+	if (WALLS == NULL)
+	{	
+		WALLS = malloc(2*(r->height+r->width)*sizeof(int*));
+		int i = 0;
+		for (i; i < 2*(r->height+r->width); i++)
+			WALLS[i] = malloc(2 * sizeof(int));
+	}
+	
 	else
 	{
-		int* tmpPtrY;
-		int* tmpPtrX;
-	        tmpPtrY = (int*) realloc (wallsY, (numWallVerts + (2 * width) + (2*height)) * sizeof(int)); //TODO: we are adding double data for each corner
-                tmpPtrX = (int*) realloc (wallsX, (numWallVerts + (2 * width) + (2*height)) * sizeof(int)); //SOLN: dont draw or store corner horiz verts, requires editing numWallVerts as well	
-		if (tmpPtrY != NULL && tmpPtrX != NULL)
-		{
-			wallsY = tmpPtrY;
-			wallsX = tmpPtrX;
-		}
+		int **tmpPtr;
+		tmpPtr = realloc (WALLS, (numWallVerts + (2*(r->height+r->width) * sizeof(int*))));
+		if (tmpPtr != NULL)
+			WALLS = tmpPtr;
+
+		int i = numWallVerts;
+		for(i; i < numWallVerts + 2*(r->height+r->width); i++)
+			WALLS[i] = malloc(2* sizeof(int));
 	}
 
-	numWallVerts += ((2*width)+(2*height));
+	numWallVerts += 2*(r->height+r->width);
 
-	int i = 0;
-	int tempX = x;
-	for(i; i < width; i++) //add top horiz line to walls //FIXME: the last horiz line tile is not drawn, also applies to bot hriz line
+	fillwallarray(0, r->width, r->y, r->x, doorArray, false);
+
+/*	int off = 0;
+	for (i; i < r->width+r->height; i++) //data for the two vertical lines;
 	{
-		wallsY[i+tNVs] = y;
-		wallsX[i+tNVs] = tempX++;
-	}
-
-	tempX = x;
-	for(i; i < 2*width; i++) //add bot horiz line
-	{
-		wallsY[i+tNVs] = y+height-1;
-		wallsX[i+tNVs] = tempX++;
-	}	
-
-	int tempY = y;
-	for(i; i < (2*width)+height; i++) //add left vert line
-	{
-		wallsY[i+tNVs] = tempY++;
-		wallsX[i+tNVs] = x; 
-	}
-
-	tempY = y;
-	for(i; i < (2*width) + (2*height); i++) //add right vert line
-	{	
-		wallsY[i+tNVs] = tempY++;
-		wallsX[i+tNVs] = x+width;
-	}
+		WALLS[i][0] = r->y+off;
+		WALLS[i][1] = r->x;
+		WALLS[i+r->height][0] = r->y+off;
+		WALLS[i+r->height][1] = r->x+r->width;
+		off++;
+	}*/	
 }
-*/
+
+void fillwallarray(int start, int end, int initY, int initX, int doors[40], bool vertical)
+{
+	int i;
+	int off = -1;
+        for (i = start; i < end; i++) //data for top and bottom lines
+        {
+		off++;
+                int j;
+                bool matchdoor = FALSE;
+                for (j = 1; j < 40; j++)
+                {
+                        if (i == doors[j])
+                                matchdoor = TRUE;
+                }
+                if (matchdoor)
+                        continue;
+
+		if (vertical)
+		{
+                	WALLS[i][0] = initY+off;
+                	WALLS[i][1] = initX;
+		}
+
+		else
+		{
+			WALLS[i][0] = initY;
+			WALLS[i][1] = initX+off;
+		}
+        }
+
+}
 
 void moveplayer(WINDOW *w, int *playerY, int *playerX, char input)
 {
@@ -190,7 +229,7 @@ void moveplayer(WINDOW *w, int *playerY, int *playerX, char input)
                                         int i = 0;
                                         for(i; i < numWallVerts; i++)
                                         {
-                                                if(wallsY[i] == *playerY && wallsX[i] == (*playerX - 1))
+                                                if(WALLS[i][0] == *playerY && WALLS[i][1] == (*playerX - 1))
                                                 {
                                                         col = true;
                                                         break;
@@ -213,7 +252,7 @@ void moveplayer(WINDOW *w, int *playerY, int *playerX, char input)
                                         int i = 0;
                                         for(i; i < numWallVerts; i++)
                                         {
-                                                if(wallsY[i] == *playerY && wallsX[i] == (*playerX + 1))
+                                                if(WALLS[i][0] == *playerY && WALLS[i][1] == (*playerX + 1))
                                                 {
                                                         col = true;
                                                         break;
@@ -230,7 +269,6 @@ void moveplayer(WINDOW *w, int *playerY, int *playerX, char input)
                                 }
                                 break;
 
-                                break;
                         case 'w':
                                 if(*playerY > 1)
                                 {
