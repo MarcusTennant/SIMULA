@@ -8,7 +8,7 @@ struct Game
 	void gameLoop();
 
 	private:
-		void update();
+		void update(char input, Actor *actor);
 		void draw(Actor *actor);
 };
 #endif //GAME_H

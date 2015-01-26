@@ -9,6 +9,8 @@ struct Actor
 	char *_token;
 	int _xPos;
 	int _yPos;
+	int _oldXPos;
+	int _oldYPos;
 };
 
 #endif //ACTOR_H_

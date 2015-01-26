@@ -26,8 +26,9 @@ void Renderer::initWindow()
 	wrefresh(_inventory);
 }
 
-void Renderer::draw(int x, int y, char *token)
+void Renderer::draw(int x, int y, int oldX, int oldY, char *token)
 {
-	mvwprintw(_win, x, y, token);
+	mvwprintw(_win, oldY, oldX, " ");
+	mvwprintw(_win, y, x, token);
 	wrefresh(_win);
 }

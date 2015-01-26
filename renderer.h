@@ -5,7 +5,7 @@ struct Renderer
 {
 	~Renderer();
 	void initWindow();
-	void draw(int x, int y, char *token);
+	void draw(int x, int y, int oldX, int oldY, char *token);
 
 	private:
 
