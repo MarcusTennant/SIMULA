@@ -3,14 +3,12 @@
 
 struct Actor
 {
-	Actor(char *token, int xPos, int yPos);
+	Actor(int xPos, int yPos, char *token);
+	void move(int newX, int newY);  
 
-//	private:
-		void moveActor(char moveDir);
-
-		char *_token;
-		int _xPos;
-		int _yPos;
+	char *_token;
+	int _xPos;
+	int _yPos;
 };
 
 #endif //ACTOR_H_

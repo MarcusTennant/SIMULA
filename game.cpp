@@ -1,4 +1,4 @@
-#include <curses.h>
+#include <curses.h> //using for getch(), will probably toss for stdin
 
 #include "game.h"
 #include "renderer.h"
@@ -13,7 +13,7 @@ void Game::gameLoop()
 {
 	renderer.initWindow();
 
-	Actor* player = new Actor("*", 1, 1);
+	Actor* player = new Actor(1, 1, "*");
 	
 	char ch;
 	while((ch = getch()) != 'q') {
