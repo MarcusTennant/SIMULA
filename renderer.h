@@ -1,14 +1,11 @@
 #ifndef RENDERER_H_
 #define RENDERER_H_
 
-//struct WINDOW;
-struct Actor;
-
 struct Renderer
 {
 	~Renderer();
 	void initWindow();
-	void draw(Actor *actor);
+	void draw(int x, int y, char *token);
 
 	private:
 

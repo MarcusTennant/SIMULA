@@ -1,7 +1,6 @@
 #include <curses.h>
 
 #include "renderer.h"
-#include "actor.h"
 
 Renderer::~Renderer()
 {
@@ -27,8 +26,8 @@ void Renderer::initWindow()
 	wrefresh(_inventory);
 }
 
-void Renderer::draw(Actor *actor)
+void Renderer::draw(int x, int y, char *token)
 {
-	mvwprintw(_win, actor->_xPos, actor->_yPos, actor->_token);
+	mvwprintw(_win, x, y, token);
 	wrefresh(_win);
 }

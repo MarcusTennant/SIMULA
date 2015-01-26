@@ -4,20 +4,29 @@
 #include "renderer.h"
 #include "actor.h"
 
-void gameLoop()
-{
+
+namespace{
 	Renderer renderer;
+}
+
+void Game::gameLoop()
+{
 	renderer.initWindow();
 
 	Actor* player = new Actor("*", 1, 1);
 	
 	char ch;
 	while((ch = getch()) != 'q') {
-		renderer.draw(player);
+		draw(player);
 	}
 }
 
-void update()
+void Game::update()
 {
+}
+
+void Game::draw(Actor *actor)
+{
+	renderer.draw(actor->_xPos, actor->_yPos, actor->_token);
 }
 
